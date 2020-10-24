@@ -13,6 +13,7 @@ if (length(package.list)>0)  for (package in package.list) detach(package, chara
 
 
 library(sciplot)
+library(car)
 library(plyr) 
 #library(lmerTest)
 library(data.table)
@@ -122,6 +123,9 @@ dataset$rightChoice <- as.character(dataset$rightChoice)
 dataset$sameChoice <- 0
 dataset[dataset$leftChoice == dataset$rightChoice,]$sameChoice <- 1
 
+## Column for stimulus set
+dataset[, stimulusSet := ifelse(leftChoice %in% c('blue', 'yellow'), "albers", "pollock")]
+
 
 ### Mark pitches that are part of the dissonant zone:
 dataset[, inZone := 0]
@@ -163,12 +167,11 @@ indiData <- dataset[, .(notesTotal = .N,
                          notesInside = sum(inside),
                          notesOutside = sum(outside),
                         exploration = length(unique(.SD[1:18]$xy))), 
-                     by = .(groupNr, participant, sameChoice, zoneLocation, leftChoice, rightChoice, side)]
+                     by = .(groupNr, participant, sameChoice, zoneLocation, leftChoice, rightChoice, side, stimulusSet)]
 
 indiData <- indiData[order(groupNr, participant)]
 indiData[, innerToAll := notesInside / notesTotal]
 indiData[, zoneToAll := notesInZone / notesTotal]
-indiData[, stimulusSet := ifelse(leftChoice %in% c('blue', 'yellow'), "albers", "pollock")]
 indiData <- merge(indiData, quest[, c("age", 'gender', 'knowing', 'enjoying', 'improForms', 'instrument', 'participant')], 
                   by = 'participant', all.x = T)
 indiData[, notesMiddle := notesTotal - notesInside - notesOutside]
@@ -189,12 +192,11 @@ indiDataHalf <- dataset[, .(notesTotal = .N,
                          notesInside = sum(inside),
                          notesOutside = sum(outside),
                          exploration = length(unique(.SD[1:18]$xy))), 
-                     by = .(groupNr, participant, half, sameChoice, zoneLocation, leftChoice, rightChoice, side)]
+                     by = .(groupNr, participant, half, sameChoice, zoneLocation, leftChoice, rightChoice, side, stimulusSet)]
 
 indiDataHalf <- indiDataHalf[order(groupNr, participant)]
 indiDataHalf[, innerToAll := notesInside / notesTotal]
 indiDataHalf[, zoneToAll := notesInZone / notesTotal]
-indiDataHalf[, stimulusSet := ifelse(leftChoice %in% c('blue', 'yellow'), "albers", "pollock")]
 indiDataHalf <- merge(indiDataHalf, quest[, c("age", 'gender', 'knowing', 'enjoying', 'improForms', 'instrument', 'participant')], 
       by = 'participant', all.x = T)
 indiDataHalf[, notesMiddle := notesTotal - notesInside - notesOutside]
@@ -211,25 +213,25 @@ indiDataHalf$zoneLocation <- as.factor(indiDataHalf$zoneLocation)
 
 ##### Calculate edit distances for Group-Level Analysis #####
 groupKnowing <- quest[, .(knowing = mean(knowing)), by = dyadNr]
-groupData <- dataset[, .(distanceY = EDRDistance(.SD[side == 'left']$y, 
+groupData <- dataset[, .(distanceY = TSdist::EDRDistance(.SD[side == 'left']$y, 
                                                  .SD[side == 'right']$y, 0),
-                         distanceY10 = EDRDistance(.SD[side == 'left'][1:10]$y, 
+                         distanceY10 = TSdist::EDRDistance(.SD[side == 'left'][1:10]$y, 
                                                    .SD[side == 'right'][1:10]$y, 0),
-                         distanceX = EDRDistance(.SD[side == 'left']$x, 
+                         distanceX = TSdist::EDRDistance(.SD[side == 'left']$x, 
                                                  .SD[side == 'right']$x, 0),
-                         distanceX10 = EDRDistance(.SD[side == 'left'][1:10]$x, 
+                         distanceX10 = TSdist::EDRDistance(.SD[side == 'left'][1:10]$x, 
                                                    .SD[side == 'right'][1:10]$x, 0),
-                         distanceXY = EDRDistance(.SD[side == 'left']$xy, 
+                         distanceXY = TSdist::EDRDistance(.SD[side == 'left']$xy, 
                                                   .SD[side == 'right']$xy, 0),
-                         distanceXY10 = EDRDistance(.SD[side == 'left'][1:10]$xy, 
+                         distanceXY10 = TSdist::EDRDistance(.SD[side == 'left'][1:10]$xy, 
                                                     .SD[side == 'right'][1:10]$xy, 0),
-                         distancePitch = EDRDistance(.SD[side == 'left']$pitch, 
+                         distancePitch = TSdist::EDRDistance(.SD[side == 'left']$pitch, 
                                                      .SD[side == 'right']$pitch, 0),
-                         distancePitch10 = EDRDistance(.SD[side == 'left'][1:10]$pitch, 
+                         distancePitch10 = TSdist::EDRDistance(.SD[side == 'left'][1:10]$pitch, 
                                                        .SD[side == 'right'][1:10]$pitch, 0)
                          #,yLeft = paste(.SD[side == 'left'][1:10]$y, collapse = "_"),
                          #yRight = paste(.SD[side == 'right'][1:10]$y, collapse = "_")
-), by = .(groupNr, zoneLocation, sameChoice)]
+), by = .(groupNr, zoneLocation, sameChoice, stimulusSet)]
 groupData <- merge(groupData, groupKnowing, by.x = 'groupNr', by.y = 'dyadNr')
 groupData[, relation := ifelse(knowing > 5, "friend", 'stranger')]
 groupData[knowing %in% c(3, 3.5, 4, 4.5, 5), relation := 'neutral']
@@ -291,7 +293,12 @@ zoneToAllModelWholeTrial <- mixed(zoneToAll ~
                             (1|groupNr), 
                           data = indiData)
 anova(zoneToAllModelWholeTrial)
-#summary(zoneToAllModelWholeTrial)
+# contrasts must be set to sum up to zero 
+# (see here: http://md.psych.bio.uni-goettingen.de/mv/unit/lm_cat/lm_cat_unbal_ss_explained.html)
+# otherwise summary() gives unrelable results 
+options(contrasts = c("contr.sum","contr.poly"))
+summary(zoneToAllModelWholeTrial)
+
 
 # - - - - - 
 
@@ -310,11 +317,11 @@ zoneToAllModelHalf1 <- mixed(zoneToAll ~
                                    (1|groupNr), 
                                  data = indiDataHalf[half == 1])
 anova(zoneToAllModelHalf1)
-#summary(zoneToAllModelHalf1)
+summary(zoneToAllModelHalf1)
 
 
 
-## Exploration ??/18 in first 18##
+## Exploration ??/18 in first 18 ##
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, exploration, sameChoice, 
             data = indiData[zoneLocation == "inside"], 
@@ -331,7 +338,7 @@ explorationModelWholeTrial <- mixed(exploration ~
                                      (1|groupNr), 
                                    data = indiData[])
 anova(explorationModelWholeTrial)
-#summary(explorationModelWholeTrial)
+summary(explorationModelWholeTrial)
 
 
 ## Exploration ??/18 in totale ##
@@ -353,7 +360,11 @@ explorationModelWholeTrial <- mixed(nrUniqueVisitedTiles ~
                        data = indiData[])
 anova(explorationModelWholeTrial)
 summary(explorationModelWholeTrial)
-
+par(mfrow = c(1, 1), oma = c(2, 2, 0, 0))
+bargraph.CI(zoneLocation, nrUniqueVisitedTiles, sameChoice, 
+            data = indiData[], 
+            main = 'sameChoice * zoneLocation', legend = T, ylim = c(10, 20))
+abline(h = 18, col = "darkgrey")
 
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, nrUniqueVisitedTiles, sameChoice, 
@@ -370,6 +381,11 @@ explorationModelFirstHalf <- mixed(nrUniqueVisitedTiles ~ as.factor(sameChoice) 
 anova(explorationModelFirstHalf)
 summary(explorationModelFirstHalf)
 
+par(mfrow = c(1, 1), oma = c(2, 2, 0, 0))
+bargraph.CI(zoneLocation, nrUniqueVisitedTiles, sameChoice, 
+            data = indiData[], 
+            main = 'sameChoice * zoneLocation', legend = T, ylim = c(10, 20))
+abline(h = 18, col = "darkgrey")
 
 ## Proximity ##
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
@@ -380,12 +396,12 @@ bargraph.CI(relation, innerToAll, sameChoice,
             data = indiData[zoneLocation == "outside"], 
             main = 'Zone Outside', legend = T, ylim = c(0, 0.5))
 
-proximityModelWholeTrial <- lmer(proximity ~ sameChoice * knowing *
+proximityModelWholeTrial <- mixed(proximity ~ sameChoice * knowing *
                                    zoneLocation +
                       (1|groupNr), 
                     data = indiData[])
 anova(proximityModelWholeTrial)
-#summary(proximityModelWholeTrial)
+summary(proximityModelWholeTrial)
 
 
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
@@ -403,69 +419,94 @@ proximityModelWholeTrial <- mixed(proximity ~ sameChoice * knowing *
                                    (1|groupNr), 
                                  data = indiDataHalf[half == 1])
 anova(proximityModelWholeTrial)
-#summary(proximityModelWholeTrial)
+summary(proximityModelWholeTrial)
 
 
 
-par(mfrow = c(2, 1))
-bargraph.CI(relation, distanceY10, sameChoice, data = groupData[zoneLocation == "inside"], legend = T, main = 'distanceY10', ylim = c(0, 10))
-bargraph.CI(relation, distanceY10, sameChoice, data = groupData[zoneLocation == "outside"], legend = T, main = 'distanceY10')
-
-bargraph.CI(relation, distanceY, sameChoice, data = groupData, legend = T, main = 'distanceY')
-bargraph.CI(relation, distanceX10, sameChoice, data = groupData, legend = T, main = 'distanceX10')
-bargraph.CI(relation, distanceX, sameChoice, data = groupData, legend = T, main = 'distanceX')
-bargraph.CI(relation, distanceXY10, sameChoice, data = groupData, legend = T, main = 'distanceXY10')
-bargraph.CI(relation, distanceXY, sameChoice, data = groupData, legend = T, main = 'distanceXY')
-bargraph.CI(relation, distancePitch10, sameChoice, data = groupData, legend = T, main = 'distancePitch10')
-bargraph.CI(relation, distancePitch, sameChoice, data = groupData, legend = T, main = 'distancePitch')
-
-
+par(mfrow = c(1, 1))
+bargraph.CI(relation, distanceY10, sameChoice, data = groupData, legend = T, main = 'distanceY10', ylim = c(0, 10))
 
 zoneToAllModelWholeTrial <- lm(distanceY10 ~ 
-                                   sameChoice * knowing * 
-                                   zoneLocation, 
-                                 data = groupData)
-anova(zoneToAllModelWholeTrial)
+                                 sameChoice * knowing * 
+                                 zoneLocation, 
+                               data = groupData)
+options(contrasts = c("contr.sum","contr.poly"))
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
+summary(zoneToAllModelWholeTrial)
+
+
+bargraph.CI(relation, distanceY, sameChoice, data = groupData, legend = T, main = 'distanceY')
 
 zoneToAllModelWholeTrial <- lm(distanceY ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
-anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
+summary(zoneToAllModelWholeTrial)
+
+
+bargraph.CI(relation, distanceX10, sameChoice, data = groupData, legend = T, main = 'distanceX10')
 
 zoneToAllModelWholeTrial <- lm(distanceX10 ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
 anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+
+
+bargraph.CI(relation, distanceX, sameChoice, data = groupData, legend = T, main = 'distanceX')
 
 zoneToAllModelWholeTrial <- lm(distanceX ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
-anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+
+
+bargraph.CI(relation, distanceXY10, sameChoice, data = groupData, legend = T, main = 'distanceXY10')
 
 zoneToAllModelWholeTrial <- lm(distanceXY10 ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
-anova(zoneToAllModelWholeTrial)
+options(contrasts = c("contr.sum","contr.poly"))
+summary(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
+
+
+bargraph.CI(relation, distanceXY, sameChoice, data = groupData, legend = T, main = 'distanceXY')
 
 zoneToAllModelWholeTrial <- lm(distanceXY ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
 anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
+
+
+bargraph.CI(relation, distancePitch10, sameChoice, data = groupData, legend = T, main = 'distancePitch10')
 
 zoneToAllModelWholeTrial <- lm(distancePitch10 ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
 anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
+
+
+bargraph.CI(relation, distancePitch, sameChoice, data = groupData, legend = T, main = 'distancePitch')
 
 zoneToAllModelWholeTrial <- lm(distancePitch ~ 
                                  sameChoice * knowing * 
                                  zoneLocation, 
                                data = groupData)
 anova(zoneToAllModelWholeTrial)
+Anova(zoneToAllModelWholeTrial, type = 3)
+Anova(zoneToAllModelWholeTrial, type = 2)
 
