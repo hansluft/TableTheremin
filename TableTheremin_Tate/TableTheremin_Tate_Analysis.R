@@ -3,15 +3,6 @@
 rm(list = ls())
 par(mfrow=c(1,1), oma=c(2, 2, 1, 1), xpd = FALSE)
 
-basic.packages <- c("package:stats","package:graphics","package:grDevices","package:utils","package:datasets","package:methods","package:base")
-
-package.list <- search()[ifelse(unlist(gregexpr("package:",search()))==1,TRUE,FALSE)]
-
-package.list <- setdiff(package.list,basic.packages)
-
-if (length(package.list)>0)  for (package in package.list) detach(package, character.only=TRUE)
-
-
 library(sciplot)
 library(car)
 library(plyr) 
