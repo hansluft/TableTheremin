@@ -175,6 +175,7 @@ indiData$participant <- as.factor(indiData$participant)
 indiData$groupNr <- as.factor(indiData$groupNr)
 indiData$sameChoice <- as.factor(indiData$sameChoice)
 indiData$zoneLocation <- as.factor(indiData$zoneLocation)
+indiData[, knowingCentered := knowing - mean(.SD$knowing)]
 
 
 indiDataHalf <- dataset[, .(notesTotal = .N,
@@ -200,6 +201,7 @@ indiDataHalf$participant <- as.factor(indiDataHalf$participant)
 indiDataHalf$groupNr <- as.factor(indiDataHalf$groupNr)
 indiDataHalf$sameChoice <- as.factor(indiDataHalf$sameChoice)
 indiDataHalf$zoneLocation <- as.factor(indiDataHalf$zoneLocation)
+indiDataHalf[, knowingCentered := knowing - mean(.SD$knowing)]
 
 
 ##### Calculate edit distances for Group-Level Analysis #####
@@ -263,13 +265,14 @@ segments(1.23, ((brownOnes + blackOnes) / 2), 2.8, ((brownOnes + blackOnes) / 2)
 text(0.7, blueOnes + 2, paste(round(blueOnes/totalAlbersPeople * 100, 2), "%", sep = ""))
 text(1.9, blackOnes + 2, paste(round(blackOnes/totalPollockPeople * 100, 2), "%", sep = ""))
 
-#### Analysis ####
+
+#### Analyses ####
 ## Mixed Effects Models ##
 
 names(indiData)
 str(indiData)
 
-## zoneToAll ##
+#### Analysis - zoneToAll ratio ####
 
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, zoneToAll, sameChoice, 
@@ -279,19 +282,20 @@ bargraph.CI(relation, zoneToAll, sameChoice,
             data = indiData[zoneLocation == "outside"], 
             main = 'Zone Outside', legend = T, ylim = c(0, 0.45))
 
+
 zoneToAllModelWholeTrial <- mixed(zoneToAll ~ 
-                                   sameChoice * knowing * zoneLocation +
+                                   sameChoice * knowingCentered * zoneLocation +
                             (1|groupNr), 
                           data = indiData)
-anova(zoneToAllModelWholeTrial)
+
 # contrasts must be set to sum up to zero 
 # (see here: http://md.psych.bio.uni-goettingen.de/mv/unit/lm_cat/lm_cat_unbal_ss_explained.html)
 # otherwise summary() gives unrelable results 
 options(contrasts = c("contr.sum","contr.poly"))
 summary(zoneToAllModelWholeTrial)
+anova(zoneToAllModelWholeTrial)
 
-
-# - - - - - 
+# zoneToAll analysis for first half
 
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 
@@ -303,16 +307,19 @@ bargraph.CI(relation, zoneToAll, sameChoice,
             main = 'Zone Outside - 1st Half', legend = T, ylim = c(0, 0.45))
 
 zoneToAllModelHalf1 <- mixed(zoneToAll ~ 
-                                   sameChoice * knowing * 
+                                   sameChoice * knowingCentered * 
                                    zoneLocation + 
                                    (1|groupNr), 
                                  data = indiDataHalf[half == 1])
 anova(zoneToAllModelHalf1)
 summary(zoneToAllModelHalf1)
 
+bargraph.CI(zoneLocation, zoneToAll, 
+            data = indiDataHalf[half == 1], 
+            main = 'Zone Outside - 1st Half', legend = T, ylim = c(0, 0.45))
 
 
-## Exploration ??/18 in first 18 ##
+#### Analysis - Exploration ??/18 in first 18 ####
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, exploration, sameChoice, 
             data = indiData[zoneLocation == "inside"], 
@@ -324,7 +331,7 @@ bargraph.CI(relation, exploration, sameChoice,
 abline(h = 18, col = "darkgrey")
 
 explorationModelWholeTrial <- mixed(exploration ~ 
-                                     sameChoice * knowing * 
+                                     sameChoice * knowingCentered * 
                                      zoneLocation  + 
                                      (1|groupNr), 
                                    data = indiData[])
@@ -332,7 +339,7 @@ anova(explorationModelWholeTrial)
 summary(explorationModelWholeTrial)
 
 
-## Exploration ??/18 in totale ##
+#### Analysis - Exploration ??/18 in totale ####
 
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, nrUniqueVisitedTiles, sameChoice, 
@@ -345,7 +352,7 @@ bargraph.CI(relation, nrUniqueVisitedTiles, sameChoice,
 abline(h = 18, col = "darkgrey")
 
 explorationModelWholeTrial <- mixed(nrUniqueVisitedTiles ~ 
-                                     sameChoice * knowing * 
+                                     sameChoice * knowingCentered * 
                                      zoneLocation  + 
                          (1|groupNr), 
                        data = indiData[])
@@ -357,6 +364,8 @@ bargraph.CI(zoneLocation, nrUniqueVisitedTiles, sameChoice,
             main = 'sameChoice * zoneLocation', legend = T, ylim = c(10, 20))
 abline(h = 18, col = "darkgrey")
 
+## exploration for 1st half only ##
+
 par(mfrow = c(2, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(relation, nrUniqueVisitedTiles, sameChoice, 
             data = indiDataHalf[zoneLocation == "inside" & half == 1], 
@@ -366,7 +375,8 @@ bargraph.CI(relation, nrUniqueVisitedTiles, sameChoice,
             data = indiDataHalf[zoneLocation == "outside" & half == 1], 
             main = 'Zone Outside', legend = T, ylim = c(10, 20))
 abline(h = 18, col = "darkgrey")
-explorationModelFirstHalf <- mixed(nrUniqueVisitedTiles ~ as.factor(sameChoice) * knowing * as.factor(zoneLocation) + 
+explorationModelFirstHalf <- mixed(nrUniqueVisitedTiles ~ sameChoice * 
+                                     knowingCentered * zoneLocation + 
                            (1|groupNr), 
                          data = indiDataHalf[half == 1])
 anova(explorationModelFirstHalf)
@@ -374,7 +384,7 @@ summary(explorationModelFirstHalf)
 
 par(mfrow = c(1, 1), oma = c(2, 2, 0, 0))
 bargraph.CI(zoneLocation, nrUniqueVisitedTiles, sameChoice, 
-            data = indiData[], 
+            data = indiData[relation == "stranger"], 
             main = 'sameChoice * zoneLocation', legend = T, ylim = c(10, 20))
 abline(h = 18, col = "darkgrey")
 
