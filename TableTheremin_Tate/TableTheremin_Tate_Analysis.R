@@ -302,7 +302,7 @@ bargraph.CI(relation, zoneToAll, sameChoice,
 # Turns out that's not viable here, as most factors are between subjects
 
 mixed(zoneToAll ~ sameChoice * knowingCentered * zoneLocation +
-        (1|groupNr) + (1|stimulusSet), data = indiData)
+        (1|groupNr), data = indiData)
 
 zoneToAllModelWholeTrial <- lmer(zoneToAll ~ 
                                    sameChoice * knowingCentered * zoneLocation +
