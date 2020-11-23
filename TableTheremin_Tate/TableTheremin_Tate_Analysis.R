@@ -294,8 +294,15 @@ bargraph.CI(relation, zoneToAll, sameChoice,
 # However, mixed() signals potential errors, like none-centralized variables.
 # Hence, I will run mixed() to check for problems and compare output with 
 # lmer() + ANOVA(..., type = 3) output, which will also be used for assumption checking 
+
+# With regards to the random structure I will follow the advice given by Alex Demos in a 
+# lab intern workshiop on LMMs. 
+# Starting from the Maximal Model in the random structure and 
+# reducing it to a parsimonious fit
+# Turns out that's not viable here, as most factors are between subjects
+
 mixed(zoneToAll ~ sameChoice * knowingCentered * zoneLocation +
-        (1|groupNr), data = indiData)
+        (1|groupNr) + (1|stimulusSet), data = indiData)
 
 zoneToAllModelWholeTrial <- lmer(zoneToAll ~ 
                                    sameChoice * knowingCentered * zoneLocation +
